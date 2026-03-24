@@ -1,6 +1,21 @@
-# 🔐 AuthFlow — Firebase Auth with TTL Session Management
+# 🔐 AuthFlow — Firebase Google Auth with TTL Session Management
 
-A production-ready React authentication system built for a internship assignment at **Celebrare**. Implements Google OAuth via Firebase, protected routes, and a secure session management system with a **24-hour Time-To-Live (TTL)**.
+> **Internship Assignment** — Celebrare | Submitted by **Satyam Singh**
+
+A production-ready React authentication system implementing Google OAuth via Firebase, protected routes, and a 24-hour TTL session mechanism — built as part of the frontend internship assignment at **Celebrare**.
+
+---
+
+## 📋 Assignment Requirements
+
+| Requirement | Status |
+|---|---|
+| Google Sign-In via Firebase | ✅ Done |
+| Store user name & email in localStorage | ✅ Done |
+| 24-hour TTL session expiry | ✅ Done |
+| Protected `/dashboard` route | ✅ Done |
+| Redirect unauthenticated users to login | ✅ Done |
+| Logout clears session immediately | ✅ Done |
 
 ---
 
@@ -8,10 +23,10 @@ A production-ready React authentication system built for a internship assignment
 
 - 🔑 **Google OAuth** — One-click sign-in via Firebase `signInWithPopup`
 - 🛡️ **Protected Routes** — Unauthenticated users are hard-redirected to login
-- ⏱️ **24-Hour Session TTL** — Sessions automatically expire; no manual cleanup needed
+- ⏱️ **24-Hour Session TTL** — Sessions auto-expire; no manual cleanup needed
 - 🔄 **Session Restore** — Returning users skip the login screen on page refresh
-- 💾 **localStorage with TTL** — Stores name + email with a 24-hour expiry timestamp
-- 🌀 **Smart Loader** — Skeleton loading on auth check, full-screen loader on logout
+- 💾 **Minimal localStorage** — Only stores `name`, `email`, `expiresAt` — no tokens, no photos
+- 🌀 **Smart Loader** — Skeleton on auth check, full-screen spinner on logout
 - 📱 **Fully Responsive** — Works across mobile, tablet, and desktop
 - 🌑 **Dark Glassmorphism UI** — Premium design with animated background blobs
 
@@ -22,7 +37,7 @@ A production-ready React authentication system built for a internship assignment
 ```
 src/
 ├── context/
-│   ├── AuthContext.js       # Creates the raw context object
+│   ├── AuthContext.js       # Creates the raw React context object
 │   ├── AuthProvider.jsx     # All auth logic: login, logout, session, TTL
 │   ├── useAuth.js           # Custom hook to consume the context
 │   └── index.js             # Barrel export for clean imports
@@ -31,51 +46,51 @@ src/
 │   └── ProtectedRoute.jsx   # Blocks unauthenticated access to /dashboard
 │
 ├── pages/
-│   ├── Login.jsx            # Google sign-in UI with skeleton loading
-│   └── Dashboard.jsx        # User info + session details dashboard
+│   ├── Login.jsx            # Google sign-in UI with skeleton loading state
+│   └── Dashboard.jsx        # User info + session details + logout
 │
 ├── components/
-│   ├── Navbar.jsx           # Sticky navbar with brand and logout button
-│   └── Loader.jsx           # Full-screen animated loader
+│   ├── Navbar.jsx           # Sticky navbar with brand + logout button
+│   └── Loader.jsx           # Full-screen animated loader (used on logout)
 │
 ├── utils/
-│   └── appStorage.js        # TTL session manager (localStorage utility)
+│   └── appStorage.js        # TTL-aware localStorage utility
 │
 └── firebase/
-    └── config.js            # Firebase init with env vars
+    └── config.js            # Firebase SDK init with .env variables
 ```
 
 ---
 
-## 🔒 localStorage & TTL Design
+## 🔒 Session & localStorage Design
 
-### What is stored in localStorage?
-
-As required by the assignment, the user's **name** and **email** are stored alongside a **24-hour expiry timestamp**:
+### What gets stored?
 
 ```js
 // localStorage key: "authUser"
 {
   "name": "Satyam Singh",
-  "email": "satyam@gmail.com",
-  "expiresAt": 1711234567000   // Unix timestamp — now + 24 hours
+  "email": "[EMAIL_ADDRESS]",
+  "expiresAt": 1711234567000   // Date.now() + 24 hours in ms
 }
 ```
 
-> ⚠️ **Note:** The user's photo URL and Firebase tokens are deliberately **not stored** in localStorage. The photo is always fetched live from Firebase, and access tokens are managed by the Firebase SDK internally — not exposed in plain storage.
+> ⚠️ **Deliberately NOT stored:** photo URL and Firebase tokens.  
+> Photos are always fetched live from Firebase. Tokens are managed  
+> internally by the Firebase SDK — never exposed in plain storage.
 
-### 24-Hour TTL Flow
+### TTL Flow
 
 ```
 User logs in
     ↓
-saveUser() → writes { name, email, expiresAt: now + 24h } to localStorage
+saveUser() → { name, email, expiresAt: now + 24h } → localStorage
     ↓
-On every page refresh → getUser() checks Date.now() > expiresAt
+On every page load → getUser() runs Date.now() > expiresAt
     ↓
-Valid? → Instantly restore user state — no login screen ✅
-Expired? → Auto-clear localStorage + force signOut(auth) ✅
-Logout? → clearUser() removes the key immediately ✅
+Valid?   → Instantly restore user state (no login screen) ✅
+Expired? → clearUser() + signOut(auth) automatically ✅
+Logout?  → clearUser() removes the key immediately ✅
 ```
 
 ---
@@ -83,33 +98,45 @@ Logout? → clearUser() removes the key immediately ✅
 ## 🧩 Key Technical Decisions
 
 ### 1. Context Split into 4 Files
-Instead of a monolithic `AuthContext.jsx`, the context is split:
-- `AuthContext.js` — Only creates the context object (no dependencies)
-- `AuthProvider.jsx` — All the logic, separately testable
-- `useAuth.js` — The consuming hook, isolated for reusability
-- `index.js` — Clean barrel export
 
-This avoids circular dependencies and makes each file independently maintainable.
+Instead of one big `AuthContext.jsx`, the context is deliberately split:
+
+| File | Responsibility |
+|---|---|
+| `AuthContext.js` | Only creates the `createContext()` object |
+| `AuthProvider.jsx` | All logic: login, logout, state, TTL |
+| `useAuth.js` | Consuming hook — callable from any component |
+| `index.js` | Barrel export for clean `import { useAuth } from "../context"` |
+
+This avoids circular imports and makes every piece independently testable.
+
+---
 
 ### 2. Race Condition Fix with `useRef`
-Firebase's `onAuthStateChanged` fires asynchronously. If we only relied on `localStorage` to verify a session, a fresh login would:
-1. Open the Google popup
-2. Firebase fires `onAuthStateChanged` (session not yet written!)
-3. See no TTL in `localStorage` → force logout 💥
 
-**Fix:** A `useRef` flag (`justLoggedIn`) is set **before** the popup opens, so the listener always sees it in time.
+Firebase's `onAuthStateChanged` fires **asynchronously**. Without a fix:
+
+1. User clicks "Sign in with Google"
+2. Firebase popup opens
+3. `onAuthStateChanged` fires immediately — **localStorage is still empty!**
+4. No TTL found → auto-logout 💥
+
+**Fix:** A `justLoggedIn` ref is set **before** the popup opens, so the listener always recognizes a fresh login:
 
 ```js
 const justLoggedIn = useRef(false);
 
 const loginWithGoogle = async () => {
-  justLoggedIn.current = true;         // Raise flag before async work
+  justLoggedIn.current = true;          // Flag raised BEFORE async work
   await signInWithPopup(auth, googleProvider);
-  saveUser(firebaseUser);              // Write name, email, TTL to localStorage
+  // onAuthStateChanged fires → sees justLoggedIn.current = true → saves session ✅
 };
 ```
 
-### 3. Protected Route Implementation
+---
+
+### 3. Protected Route with `replace`
+
 ```jsx
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -117,11 +144,33 @@ export default function ProtectedRoute({ children }) {
   if (loading) return <Loader />;
   if (!user) return <Navigate to="/" replace />;  // Hard redirect
 
-  return children;  // Render the protected component
+  return children;
 }
 ```
 
-The `replace` prop ensures the user can't click the browser **Back** button to bypass the guard.
+The `replace` prop replaces the history entry — the user **cannot** press the browser Back button to bypass the route guard.
+
+---
+
+### 4. Auth State Listener Bootstrapping
+
+On every page load, the `useEffect` in `AuthProvider` runs two steps **in order**:
+
+1. **Synchronous cache check** — reads localStorage immediately, restores user state to prevent flash-of-unauthenticated-content (FOUC)
+2. **Firebase listener** — `onAuthStateChanged` fires when Firebase confirms the session, and overwrites state with live data (including fresh photo URL)
+
+```js
+useEffect(() => {
+  // Step 1: instant cache restore (prevents FOUC)
+  const cached = getUser();
+  if (cached) { setUser({ ...cached, photo: null }); setLoading(false); }
+
+  // Step 2: Firebase confirms session (live data)
+  const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => { ... });
+
+  return () => unsubscribe();
+}, []);
+```
 
 ---
 
@@ -157,15 +206,16 @@ npm run dev
 | Technology | Purpose |
 |---|---|
 | React 19 | UI framework |
-| Firebase Auth | Google OAuth |
+| Firebase Auth | Google OAuth provider |
 | React Router v7 | Client-side routing + protected routes |
-| Tailwind CSS v4 | Styling |
-| Vite | Build tool |
+| Tailwind CSS v4 | Utility-first styling |
+| Vite | Fast dev server + build tool |
 
 ---
 
 ## 👨‍💻 Author
 
-**Satyam** — Built as part of an internship assignment for **Celebrare**
+**Satyam Singh**  
+Submitted as part of the **Frontend Internship Assignment** at [Celebrare](https://celebrare.in)
 
-> This project demonstrates real-world authentication patterns including TTL-based session management, async race condition resolution with `useRef`, protected routing with React Router, and a deliberate local storage design that balances the assignment requirements with minimal data exposure.
+> This project demonstrates production-level auth patterns: TTL-based session management, async race condition resolution via `useRef`, protected routing with history replacement, and a deliberate minimal-storage design that fulfills assignment requirements while keeping sensitive data out of `localStorage`.
