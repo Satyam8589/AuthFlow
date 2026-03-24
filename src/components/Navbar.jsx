@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context";
+import { toast } from "react-hot-toast";
 import Loader from "./Loader";
 
 export default function Navbar() {
@@ -11,10 +12,11 @@ export default function Navbar() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     await logout();
+    toast.success("Signed out successfully");
     navigate("/");
   };
 
-  if (isLoggingOut) return <Loader />;
+  if (isLoggingOut) return <Loader message="Signing out..." />;
 
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#0a0a0f]/70 backdrop-blur-xl border-b border-white/[0.07]">

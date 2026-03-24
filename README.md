@@ -216,6 +216,6 @@ npm run dev
 ## 👨‍💻 Author
 
 **Satyam Singh**  
-Submitted as part of the **Frontend Internship Assignment** at [Celebrare](https://celebrare.in)
+Submitted as part of the **Internship Assignment** at [Celebrare](https://celebrare.in)
 
 > This project demonstrates production-level auth patterns: TTL-based session management, async race condition resolution via `useRef`, protected routing with history replacement, and a deliberate minimal-storage design that fulfills assignment requirements while keeping sensitive data out of `localStorage`.

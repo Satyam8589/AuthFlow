@@ -1,4 +1,4 @@
-export default function Loader() {
+export default function Loader({ message = "Checking session..." }) {
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#0a0a0f] z-50">
 
@@ -29,7 +29,7 @@ export default function Loader() {
         </div>
 
         <p className="text-xs text-slate-500 font-medium tracking-widest uppercase animate-pulse">
-          Checking session...
+          {message}
         </p>
       </div>
     </div>

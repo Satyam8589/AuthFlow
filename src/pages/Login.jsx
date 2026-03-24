@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context";
+import { toast } from "react-hot-toast";
 import Loader from "../components/Loader";
 
 export default function Login() {
   const { user, loading, loginWithGoogle } = useAuth();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -12,15 +14,19 @@ export default function Login() {
   }, [user, loading, navigate]);
 
   const handleLogin = async () => {
+    setIsLoggingIn(true);
     try {
       await loginWithGoogle();
+      toast.success("Welcome back!");
       navigate("/dashboard");
     } catch (err) {
       console.error("Login failed:", err);
+      toast.error("Cloud not sign in. Please try again.");
+      setIsLoggingIn(false);
     }
   };
 
-  if (loading) return <Loader />;
+  if (loading || isLoggingIn) return <Loader message={isLoggingIn ? "Signing in..." : "Checking session..."} />;
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#0a0a0f] overflow-hidden px-4 py-4 sm:py-8">
